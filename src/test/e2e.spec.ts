@@ -10,7 +10,13 @@ import { Device } from "../model/device";
 import { Message } from "../model/message";
 import { User } from "../model/user";
 import { Wallet } from "../model/wallet";
-import { FireblocksSDK, NCW, TransactionResponse, TransactionStatus } from "fireblocks-sdk";
+import {
+  FireblocksSDK,
+  NCW,
+  PageDetails,
+  TransactionResponse,
+  TransactionStatus,
+} from "fireblocks-sdk";
 import { anyString, anything, instance, mock, when } from "ts-mockito";
 import { sign, Algorithm } from "jsonwebtoken";
 import { MessageSubscriber } from "../subscribers/message.subscriber";
@@ -344,7 +350,7 @@ describe("e2e", () => {
     txId = randomUUID(),
     type = "TRANSACTION_CREATED",
     status = TransactionStatus.CONFIRMING,
-    date?: number
+    date?: number,
   ) {
     const payload = {
       type,
@@ -489,15 +495,31 @@ describe("e2e", () => {
 
     expect((await getTransactions()).body).toEqual([]);
 
-    when(fireblocksSdk.getTransactions(anything())).thenResolve(
-      [transactionMock(txId, TransactionStatus.CONFIRMING) as unknown as TransactionResponse]
-    );
+    when(
+      fireblocksSdk.getTransactionsWithPageInfo(anything(), anything()),
+    ).thenResolve({
+      transactions: [
+        transactionMock(
+          txId,
+          TransactionStatus.CONFIRMING,
+        ) as unknown as TransactionResponse,
+      ],
+      pageDetails: {} as PageDetails,
+    });
     await pollingService.pollAndUpdate();
     expect((await getTransactions()).body).toMatchObject([{ id: txId }]);
 
-    when(fireblocksSdk.getTransactions(anything())).thenResolve(
-      [transactionMock(txId, TransactionStatus.PENDING_SIGNATURE) as unknown as TransactionResponse]
-    );
+    when(
+      fireblocksSdk.getTransactionsWithPageInfo(anything(), anything()),
+    ).thenResolve({
+      transactions: [
+        transactionMock(
+          txId,
+          TransactionStatus.PENDING_SIGNATURE,
+        ) as unknown as TransactionResponse,
+      ],
+      pageDetails: {} as PageDetails,
+    });
     await pollingService.pollAndUpdate();
     expect(
       (await getTransactions([TransactionStatus.CONFIRMING])).body,
@@ -507,16 +529,26 @@ describe("e2e", () => {
       status: TransactionStatus.PENDING_SIGNATURE,
     });
 
-    when(fireblocksSdk.getTransactions(anything())).thenResolve(
-      [transactionMock(txId2, TransactionStatus.SUBMITTED) as unknown as TransactionResponse]
-    );
+    when(
+      fireblocksSdk.getTransactionsWithPageInfo(anything(), anything()),
+    ).thenResolve({
+      transactions: [
+        transactionMock(
+          txId2,
+          TransactionStatus.SUBMITTED,
+        ) as unknown as TransactionResponse,
+      ],
+      pageDetails: {} as PageDetails,
+    });
     await pollingService.pollAndUpdate();
-    const res = (await getTransactions([
-      TransactionStatus.CANCELLED,
-      TransactionStatus.CONFIRMING,
-      TransactionStatus.PENDING_SIGNATURE,
-      TransactionStatus.SUBMITTED,
-    ])).body;
+    const res = (
+      await getTransactions([
+        TransactionStatus.CANCELLED,
+        TransactionStatus.CONFIRMING,
+        TransactionStatus.PENDING_SIGNATURE,
+        TransactionStatus.SUBMITTED,
+      ])
+    ).body;
     console.log(res);
     expect(
       (
@@ -539,9 +571,17 @@ describe("e2e", () => {
     expect((await getTransactions()).body).toEqual([]);
 
     // 1. creating tx "concurrently"
-    when(fireblocksSdk.getTransactions(anything())).thenResolve(
-      [transactionMock(txId, TransactionStatus.CONFIRMING) as unknown as TransactionResponse]
-    );
+    when(
+      fireblocksSdk.getTransactionsWithPageInfo(anything(), anything()),
+    ).thenResolve({
+      transactions: [
+        transactionMock(
+          txId,
+          TransactionStatus.CONFIRMING,
+        ) as unknown as TransactionResponse,
+      ],
+      pageDetails: {} as PageDetails,
+    });
     await Promise.all([
       pollingService.pollAndUpdate(),
       webhookTransaction(
@@ -550,13 +590,25 @@ describe("e2e", () => {
         TransactionStatus.CONFIRMING,
       ),
     ]);
-    expect((await getTransactions()).body).toMatchObject([{ id: txId, status: TransactionStatus.CONFIRMING }]);
+    expect((await getTransactions()).body).toMatchObject([
+      { id: txId, status: TransactionStatus.CONFIRMING },
+    ]);
 
     // 2. updating tx "concurrently"
     const now = Date.now();
-    when(fireblocksSdk.getTransactions(anything())).thenResolve(
-      [transactionMock(txId, TransactionStatus.PENDING_SIGNATURE, walletId, now) as unknown as TransactionResponse]
-    );
+    when(
+      fireblocksSdk.getTransactionsWithPageInfo(anything(), anything()),
+    ).thenResolve({
+      transactions: [
+        transactionMock(
+          txId,
+          TransactionStatus.PENDING_SIGNATURE,
+          walletId,
+          now,
+        ) as unknown as TransactionResponse,
+      ],
+      pageDetails: {} as PageDetails,
+    });
     await Promise.all([
       pollingService.pollAndUpdate(),
       webhookTransaction(
@@ -566,7 +618,13 @@ describe("e2e", () => {
         now,
       ),
     ]);
-    expect((await getTransactions()).body).toMatchObject([{ id: txId, status: TransactionStatus.PENDING_SIGNATURE, lastUpdated: now }]);
+    expect((await getTransactions()).body).toMatchObject([
+      {
+        id: txId,
+        status: TransactionStatus.PENDING_SIGNATURE,
+        lastUpdated: now,
+      },
+    ]);
   });
 
   it("should handle polling transactions", async () => {
