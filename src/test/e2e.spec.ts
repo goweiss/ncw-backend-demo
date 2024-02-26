@@ -344,11 +344,12 @@ describe("e2e", () => {
     txId = randomUUID(),
     type = "TRANSACTION_CREATED",
     status = TransactionStatus.CONFIRMING,
+    date?: number
   ) {
     const payload = {
       type,
       timestamp: new Date().valueOf(),
-      data: transactionMock(txId, status, walletId),
+      data: transactionMock(txId, status, walletId, date),
     };
     await webhookPush(payload);
   }
@@ -435,7 +436,7 @@ describe("e2e", () => {
     await msgProm;
   });
 
-  it("should handle transactions - BE uses webhook", async () => {
+  it("transactions flow - BE uses webhook", async () => {
     const txId = "txId123";
     const txId2 = "txId1234";
 
@@ -479,7 +480,7 @@ describe("e2e", () => {
     ).toHaveLength(2);
   });
 
-  it("should handle transactions - BE uses polling", async () => {
+  it("transactions flow - BE uses polling", async () => {
     const txId = "txId123";
     const txId2 = "txId1234";
 
@@ -527,6 +528,45 @@ describe("e2e", () => {
         ])
       ).body,
     ).toHaveLength(2);
+  });
+
+  it("transactions flow - BE uses both polling AND webhook", async () => {
+    const txId = "txId123";
+
+    await createUser();
+    await createWallet();
+
+    expect((await getTransactions()).body).toEqual([]);
+
+    // 1. creating tx "concurrently"
+    when(fireblocksSdk.getTransactions(anything())).thenResolve(
+      [transactionMock(txId, TransactionStatus.CONFIRMING) as unknown as TransactionResponse]
+    );
+    await Promise.all([
+      pollingService.pollAndUpdate(),
+      webhookTransaction(
+        txId,
+        "TRANSACTION_CREATED",
+        TransactionStatus.CONFIRMING,
+      ),
+    ]);
+    expect((await getTransactions()).body).toMatchObject([{ id: txId, status: TransactionStatus.CONFIRMING }]);
+
+    // 2. updating tx "concurrently"
+    const now = Date.now();
+    when(fireblocksSdk.getTransactions(anything())).thenResolve(
+      [transactionMock(txId, TransactionStatus.PENDING_SIGNATURE, walletId, now) as unknown as TransactionResponse]
+    );
+    await Promise.all([
+      pollingService.pollAndUpdate(),
+      webhookTransaction(
+        txId,
+        "TRANSACTION_STATUS_UPDATED",
+        TransactionStatus.PENDING_SIGNATURE,
+        now,
+      ),
+    ]);
+    expect((await getTransactions()).body).toMatchObject([{ id: txId, status: TransactionStatus.PENDING_SIGNATURE, lastUpdated: now }]);
   });
 
   it("should handle polling transactions", async () => {
