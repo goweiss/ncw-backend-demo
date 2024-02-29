@@ -507,7 +507,7 @@ describe("e2e", () => {
       ],
       pageDetails: {} as PageDetails,
     });
-    await PollingService.getInstance().pollAndUpdate();
+    await PollingService.getInstance()["pollAndUpdate"]();
     expect((await getTransactions()).body).toMatchObject([{ id: txId }]);
 
     when(
@@ -521,7 +521,7 @@ describe("e2e", () => {
       ],
       pageDetails: {} as PageDetails,
     });
-    await PollingService.getInstance().pollAndUpdate();
+    await PollingService.getInstance()["pollAndUpdate"]();
     expect(
       (await getTransactions([TransactionStatus.CONFIRMING])).body,
     ).toEqual([]);
@@ -541,7 +541,7 @@ describe("e2e", () => {
       ],
       pageDetails: {} as PageDetails,
     });
-    await PollingService.getInstance().pollAndUpdate();
+    await PollingService.getInstance()["pollAndUpdate"]();
     const res = (
       await getTransactions([
         TransactionStatus.CANCELLED,
@@ -584,7 +584,7 @@ describe("e2e", () => {
       pageDetails: {} as PageDetails,
     });
     await Promise.all([
-      PollingService.getInstance().pollAndUpdate(),
+      PollingService.getInstance()["pollAndUpdate"](),
       webhookTransaction(
         txId,
         "TRANSACTION_CREATED",
@@ -611,7 +611,7 @@ describe("e2e", () => {
       pageDetails: {} as PageDetails,
     });
     await Promise.all([
-      PollingService.getInstance().pollAndUpdate(),
+      PollingService.getInstance()["pollAndUpdate"](),
       webhookTransaction(
         txId,
         "TRANSACTION_STATUS_UPDATED",
